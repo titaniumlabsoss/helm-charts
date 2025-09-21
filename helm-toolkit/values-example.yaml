@@ -1,0 +1,434 @@
+# =============================================================================
+# EXAMPLE VALUES.YAML FOR HELM-TOOLKIT
+# =============================================================================
+# This file provides simple, practical examples of how to use the helm-toolkit
+# template helpers in a typical web application deployment.
+#
+# This is a minimal, production-ready configuration that demonstrates
+# the most commonly used features.
+# =============================================================================
+
+# Basic application information
+nameOverride: ""
+fullnameOverride: ""
+
+# =============================================================================
+# SIMPLE WEB APPLICATION EXAMPLE
+# =============================================================================
+
+# Basic labels and annotations
+commonLabels:
+  environment: production
+  team: platform
+
+commonAnnotations:
+  "company.com/contact": "platform-team@company.com"
+
+# Service account with cloud integration
+serviceAccount:
+  create: true
+  automount: false
+  annotations:
+    # AWS IAM role for accessing S3, SQS, etc.
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/MyAppRole"
+
+# Basic RBAC for reading ConfigMaps and Secrets
+rbac:
+  create: true
+  rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+
+# Security configuration
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+# Resource allocation
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# High availability
+podAntiAffinity:
+  enabled: true
+  type: soft
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Ingress with TLS
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+  - host: myapp.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+      serviceName: myapp
+      servicePort:
+        number: 80
+  tls:
+  - secretName: myapp-tls
+    hosts:
+    - myapp.example.com
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Application configuration
+config:
+  app.yaml: |
+    server:
+      port: 8080
+      host: 0.0.0.0
+    database:
+      host: postgres.database.svc.cluster.local
+      port: 5432
+      name: myapp
+    redis:
+      host: redis.cache.svc.cluster.local
+      port: 6379
+    features:
+      new_ui: true
+      metrics_enabled: true
+
+# Database connection
+database:
+  enabled: true
+  driver: postgresql
+  host: postgres.database.svc.cluster.local
+  port: 5432
+  name: myapp
+  username: myapp_user
+
+# Metrics for Prometheus
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
+
+# =============================================================================
+# MULTI-COMPONENT APPLICATION EXAMPLE
+# =============================================================================
+
+# Configuration for different components of the same application
+components:
+  # Frontend component
+  frontend:
+    replicaCount: 3
+
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 3000
+
+    ingress:
+      enabled: true
+      hosts:
+      - host: app.example.com
+        paths:
+        - path: /
+          pathType: Prefix
+          serviceName: myapp-frontend
+          servicePort:
+            number: 80
+
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 3000
+
+  # Backend API component
+  api:
+    replicaCount: 2
+
+    serviceAccount:
+      create: true
+      automount: true  # Needs K8s API access
+      annotations:
+        eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/MyAppAPIRole"
+
+    rbac:
+      create: true
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps", "secrets", "pods"]
+        verbs: ["get", "list", "watch"]
+
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+
+    ingress:
+      enabled: true
+      hosts:
+      - host: api.example.com
+        paths:
+        - path: /
+          pathType: Prefix
+          serviceName: myapp-api
+          servicePort:
+            number: 80
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+    livenessProbe:
+      httpGet:
+        path: /api/health
+        port: 8080
+      initialDelaySeconds: 45
+
+    metrics:
+      enabled: true
+      port: 8080
+      path: /api/metrics
+
+  # Background worker component
+  worker:
+    replicaCount: 1
+
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+    # Workers can run on spot instances
+    nodeSelector:
+      node-type: spot
+
+    tolerations:
+    - key: spot-instance
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+    # No service needed for workers
+    service:
+      enabled: false
+
+    # Workers scale based on queue depth
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 85
+
+    # Custom health check for workers
+    livenessProbe:
+      httpGet:
+        path: /worker/health
+        port: 8090
+      initialDelaySeconds: 60
+      periodSeconds: 30
+
+# =============================================================================
+# DATABASE DEPLOYMENT EXAMPLE
+# =============================================================================
+
+# PostgreSQL database with persistence
+database:
+  postgresql:
+    enabled: true
+
+    image:
+      repository: postgres
+      tag: "15-alpine"
+
+    # Database runs as postgres user
+    podSecurityContext:
+      runAsNonRoot: false  # Postgres needs to run as postgres user
+      runAsUser: 999
+      runAsGroup: 999
+      fsGroup: 999
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false  # Database needs to write
+      runAsNonRoot: false
+      runAsUser: 999
+
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Headless service for StatefulSet
+    service:
+      type: ClusterIP
+      port: 5432
+      clusterIP: None
+
+    # Persistence configuration
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: fast-ssd
+
+    # Database health checks
+    livenessProbe:
+      exec:
+        command:
+        - pg_isready
+        - -U
+        - postgres
+      initialDelaySeconds: 30
+
+    readinessProbe:
+      exec:
+        command:
+        - pg_isready
+        - -U
+        - postgres
+      initialDelaySeconds: 5
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# =============================================================================
+
+# Development environment
+development:
+  replicaCount: 1
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  autoscaling:
+    enabled: false
+
+  ingress:
+    hosts:
+    - host: myapp.dev.example.com
+
+  database:
+    persistence:
+      enabled: false  # Use ephemeral storage for dev
+
+# Staging environment
+staging:
+  replicaCount: 2
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  ingress:
+    hosts:
+    - host: myapp.staging.example.com
+
+  database:
+    persistence:
+      size: 10Gi
+
+# Production environment
+production:
+  replicaCount: 3
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 20
+
+  # Production-grade monitoring
+  metrics:
+    enabled: true
+
+  # Network security for production
+  networkPolicy:
+    enabled: true
+    policyTypes: ["Ingress", "Egress"]
+    ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+    egress:
+    - to: []
+      ports:
+      - protocol: TCP
+        port: 443
+      - protocol: UDP
+        port: 53

@@ -1,0 +1,20 @@
+apiVersion: v2
+type: library
+name: helm-toolkit
+description: A comprehensive Helm library chart providing common template helpers and utilities, combining best practices from Bitnami common chart and OpenStack helm-toolkit.
+version: 1.0.0
+sources:
+  - https://github.com/titaniumlabsoss/helm-charts
+maintainers:
+  - name: Titanium Labs
+    email: support@titaniumlabs.io
+keywords:
+  - library
+  - common
+  - helpers
+  - utilities
+  - bitnami
+  - openstack
+annotations:
+  licenses: Apache-2.0
+  category: Library
