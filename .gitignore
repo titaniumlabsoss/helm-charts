@@ -1,0 +1,31 @@
+# Packages
+*.egg*
+*.egg-info
+dist
+build
+eggs
+parts
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+
+# Dev tools
+.idea/
+.vscode/
+.devcontainer/
+**/.vagrant
+**/*.log
+
+# Helm internals
+*.lock
+*/*.lock
+*.tgz
+**/*.tgz
+**/_partials.tpl
+**/_globals.tpl
+
+# OS files
+.DS_Store
